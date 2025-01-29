@@ -41,6 +41,8 @@ class Proxies(object):
         self.unchecked = set(self.proxies.keys())
         self.good = set()
         self.dead = set()
+        self.used = set()
+        self.last_used = None
 
         if backoff is None:
             backoff = exp_backoff_full_jitter
@@ -48,10 +50,24 @@ class Proxies(object):
 
     def get_random(self):
         """ Return a random available proxy (either good or unchecked) """
-        available = list(self.unchecked | self.good)
+
+        available = self.unchecked | self.good
         if not available:
             return None
-        return random.choice(available)
+
+        if len(available) > 1:
+            if self.last_used:
+                available.discard(self.last_used)
+
+        unused = available - self.used
+        if not unused:
+            self.used.clear()
+            unused = available
+
+        self.last_used = random.choice(list(unused))
+        self.used.add(self.last_used)
+
+        return self.last_used
 
     def get_proxy(self, proxy_address):
         """
@@ -150,7 +166,7 @@ def exp_backoff(attempt, cap=3600, base=300):
     """ Exponential backoff time """
     # this is a numerically stable version of
     # min(cap, base * 2 ** attempt)
-    max_attempts = math.log(cap / base, 2)
+    max_attempts = math.log2(cap / base)
     if attempt <= max_attempts:
         return base * 2 ** attempt
     return cap
