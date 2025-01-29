@@ -166,7 +166,7 @@ def exp_backoff(attempt, cap=3600, base=300):
     """ Exponential backoff time """
     # this is a numerically stable version of
     # min(cap, base * 2 ** attempt)
-    max_attempts = math.log2(cap / base)
+    max_attempts = math.log(cap / base, 2)
     if attempt <= max_attempts:
         return base * 2 ** attempt
     return cap
