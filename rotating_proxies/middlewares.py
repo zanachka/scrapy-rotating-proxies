@@ -162,20 +162,30 @@ class RotatingProxyMiddleware(object):
         return self._handle_result(request, spider) or response
 
     def _handle_result(self, request, spider):
-        proxy = self.proxies.get_proxy(request.meta.get('proxy', None))
-        if not (proxy and request.meta.get('_rotating_proxy')):
+        proxy = self.proxies.get_proxy(request.meta.get("proxy", None))
+        if not (proxy and request.meta.get("_rotating_proxy")):
             return
+
+        ban = request.meta.get('_ban', None)
+        retry = False
+
+        if ban is True:
+            self.proxies.mark_dead(proxy)
+            retry = True
+        elif ban is False:
+            self.proxies.mark_good(proxy)
+
+        self._update_proxy_stats()
+
+        if retry:
+            return self._retry(request, spider)
+
+    def _update_proxy_stats(self):
         self.stats.set_value('proxies/unchecked', len(self.proxies.unchecked) - len(self.proxies.reanimated))
         self.stats.set_value('proxies/reanimated', len(self.proxies.reanimated))
         self.stats.set_value('proxies/mean_backoff', self.proxies.mean_backoff_time)
-        ban = request.meta.get('_ban', None)
-        if ban is True:
-            self.proxies.mark_dead(proxy)
-            self.stats.set_value('proxies/dead', len(self.proxies.dead))
-            return self._retry(request, spider)
-        elif ban is False:
-            self.proxies.mark_good(proxy)
-            self.stats.set_value('proxies/good', len(self.proxies.good))
+        self.stats.set_value('proxies/dead', len(self.proxies.dead))
+        self.stats.set_value('proxies/good', len(self.proxies.good))
 
     def _retry(self, request, spider):
         retries = request.meta.get('proxy_retry_times', 0) + 1
