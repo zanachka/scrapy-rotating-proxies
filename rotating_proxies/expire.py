@@ -41,6 +41,7 @@ class Proxies(object):
         self.unchecked = set(self.proxies.keys())
         self.good = set()
         self.dead = set()
+        self.used = set()
 
         if backoff is None:
             backoff = exp_backoff_full_jitter
@@ -48,10 +49,20 @@ class Proxies(object):
 
     def get_random(self):
         """ Return a random available proxy (either good or unchecked) """
-        available = list(self.unchecked | self.good)
+
+        available = self.unchecked | self.good
         if not available:
             return None
-        return random.choice(available)
+
+        unused = available - self.used
+        if not unused:
+            self.used.clear()
+            unused = available
+
+        proxy = random.choice(list(unused))
+        self.used.add(proxy)
+
+        return proxy
 
     def get_proxy(self, proxy_address):
         """
